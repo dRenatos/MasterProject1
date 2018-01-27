@@ -7,8 +7,6 @@
  * This file grades the answers your agent submits.
  */
 
-package ravensproject;
-
 import java.io.File;
 import java.io.IOException;
 import java.io.PrintWriter;
