@@ -3,9 +3,7 @@ package ravensproject;// Uncomment these lines to access image processing.
 //import java.io.File;
 //import javax.imageio.ImageIO;
 
-import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.List;
 
 /**
  * Your Agent for solving Raven's Progressive Matrices. You MUST modify this
@@ -31,14 +29,9 @@ public class Agent {
     private String matrix2x2Type = "matrix2x2";
     private String matriz3x3Type = "matrix3x3";
 
-    private int horizontalWay = 0;
-    private int verticalWay = 1;
-
     private HashMap<String, RavensFigure> scenarios;
-    private HashMap<String, ObjDifferences> horizontalDifferences;
-    private HashMap<String, ObjDifferences> verticalDifferences;
-
-    private RavensProblem currentProblem;
+    private HashMap<String, ObjDifferences> vectorOfDifferences;
+    private HashMap<String, ObjDifferences> potentialAnswer;
 
     /**
      * The default constructor for your Agent. Make sure to execute any
@@ -66,9 +59,10 @@ public class Agent {
      * @return your Agent's answer to this problem
      */
     public int Solve(RavensProblem problem) {
-        currentProblem = problem;
         scenarios = problem.getFigures();
         String currentProblemType = problem.getProblemType();
+
+        GetInitialAnswer(scenarios.get("A"));
 
         if (problem.hasVerbal() && matrix2x2Type.equals(currentProblemType) && shouldUseVerbal)
             Solve2x2ByVerbal();
@@ -82,14 +76,37 @@ public class Agent {
         return answer;
     }
 
+    private void GetInitialAnswer(RavensFigure initialState){
+        potentialAnswer = new HashMap<>();
+
+        for(String objs:initialState.getObjects().keySet()){
+            ObjDifferences differences = new ObjDifferences(initialState.getObjects().get(objs).getName(), initialState.getObjects().get(objs).getAttributes());
+            potentialAnswer.put(initialState.getObjects().get(objs).getName(), differences);
+        }
+    }
+
+    private void ApplyChangesInInitialAnswer()
+    {
+        for (String obj:vectorOfDifferences.keySet()) {
+            for (String attribute:vectorOfDifferences.get(obj).atributes.keySet()) {
+                if(vectorOfDifferences.get(obj).atributes.get(attribute).equals("deleted"))
+                    potentialAnswer.get(obj).atributes.remove(attribute);
+                else
+                    potentialAnswer.get(obj).atributes.put(attribute, vectorOfDifferences.get(obj).atributes.get(attribute));
+            }
+        }
+    }
+
+
+
     private void Solve2x2ByVerbal() {
         RavensFigure scenarioA, scenarioB, scenarioC;
         scenarioA = scenarios.get("A");
         scenarioB = scenarios.get("B");
         scenarioC = scenarios.get("C");
 
-        CompareScenarios(scenarioA, scenarioB, horizontalWay);
-        CompareScenarios(scenarioA, scenarioC, verticalWay);
+        CompareScenarios(scenarioA, scenarioB);
+        CompareScenarios(scenarioA, scenarioC);
     }
 
     private void Solve2x2ByImage() {
@@ -101,55 +118,68 @@ public class Agent {
     private void Solve3x3ByImage() {
     }
 
-    //way variable is to know in which direction is going to be comparison
-    private void CompareScenarios(RavensFigure scenario1, RavensFigure scenario2, int way)
+    private void CompareScenarios(RavensFigure scenario1, RavensFigure scenario2)
     {
-        for (String objectName:scenario1.getObjects().keySet()) {
+        int sizeScenario1 = scenario1.getObjects().size();
+        int sizeScenario2 = scenario2.getObjects().size();
 
-            RavensObject aCurrentObj = scenario1.getObjects().get(objectName);
-            RavensObject bCurrentObj = null;
+        int selectedSize = sizeScenario1 > sizeScenario2 ? sizeScenario2 : sizeScenario1;
 
-            if(scenario2.getObjects().containsKey(objectName))
-                bCurrentObj = scenario2.getObjects().get(objectName);
+        for (int i = 0 ; i < selectedSize; i++) {
+            //TODO check case where object exists in scenario A but does not exist in scenario2 and where it exits in scenario B but do not exits in scenario A
+            //TODO check if it works
+            RavensObject aCurrentObj = (RavensObject)scenario1.getObjects().values().toArray()[i];
+            RavensObject bCurrentObj = (RavensObject)scenario2.getObjects().values().toArray()[i];
 
-            if(bCurrentObj != null)
-                CompareObjects(aCurrentObj, bCurrentObj, way);
+            CompareObjects(aCurrentObj, bCurrentObj);
         }
     }
 
-    //way variable is to know in which direction is going to be comparison
-    private void CompareObjects(RavensObject obj1, RavensObject obj2, int way)
+    private void CompareObjects(RavensObject obj1, RavensObject obj2)
     {
+        if(vectorOfDifferences == null)
+            vectorOfDifferences = new HashMap<>();
+
+        ObjDifferences diff = new ObjDifferences(obj1.getName());
+
         for (String attribute:obj1.getAttributes().keySet()) {
-          //  if(way == horizontalWay)
 
-            //if(way == verticalWay)
+            if(!obj2.getAttributes().containsKey(attribute)) {
+                diff.atributes.put(attribute, "deleted");
+            }
+            else{
+                if(!obj1.getAttributes().get(attribute).equals(obj2.getAttributes().get(attribute))) {
+                    if(vectorOfDifferences.containsKey(obj1.getName())) {
+                        if (!vectorOfDifferences.get(obj1.getName()).atributes.containsKey(attribute))
+                            diff.atributes.put(attribute, obj2.getAttributes().get(attribute));
+                        else {
+                            String answer =
+                                    CalculateDifferencesBetweenAtrributes(attribute, vectorOfDifferences.get(obj1.getName()).atributes.get(attribute), obj2.getAttributes().get(attribute));
+                            diff.atributes.put(attribute, answer);
+                        }
+                    }
+                    else{
+                        if(!obj1.getAttributes().get(attribute).equals(obj2.getAttributes().get(attribute)))
+                            diff.atributes.put(attribute, obj2.getAttributes().get(attribute));
+                    }
+                }
+            }
         }
+
+        for(String attribute:obj2.getAttributes().keySet()){
+            if(!obj1.getAttributes().containsKey(attribute))
+                diff.atributes.put(attribute, obj2.getAttributes().get(attribute));
+        }
+
+        if(diff.atributes != null && !diff.atributes.isEmpty())
+            vectorOfDifferences.put(obj1.getName(), diff);
     }
 
-    /**private List<String> missingKeysinHash2;
-    private List<String> missingKeysinHash1;
-
-    private void CheckIfObjectsHaveSameKeys(HashMap<String, String> hash1, HashMap<String, String> hash2)
+    private String CalculateDifferencesBetweenAtrributes(String attribute, String diff1, String diff2)
     {
-        //Check up for the first hash
-        for (String key: hash1.keySet()) {
-            if (!hash2.containsKey(key)) {
-                if(missingKeysinHash2 == null)
-                    missingKeysinHash2 = new ArrayList<>();
-                missingKeysinHash2.add(key);
-            }
-        }
-
-        //Check up for the second hash
-        for (String key: hash2.keySet()) {
-            if (!hash1.containsKey(key)){
-                if(missingKeysinHash1 == null)
-                    missingKeysinHash1 = new ArrayList<>();
-                missingKeysinHash1.add(key);
-            }
-        }
-    }*/
+        //TODO
+        return "-1";
+    }
 
     private String CompareFillAndShape(String color1, String color2)
     {
@@ -195,14 +225,20 @@ public class Agent {
     }
 
     class ObjDifferences{
-        public String from;
-        public String to;
+        public String objName;
+        public boolean deleted;
 
         public HashMap<String, String> atributes;
 
-        public ObjDifferences(String f, String t){
-            from = f;
-            to = t;
+        public ObjDifferences(String n){
+           objName = n;
+           atributes = new HashMap<>();
         }
+
+        public ObjDifferences(String n, HashMap<String, String>h){
+            objName = n;
+            atributes = h;
+        }
+
     }
 }
