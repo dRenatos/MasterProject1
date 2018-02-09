@@ -22,16 +22,22 @@ public class Agent {
 
     //Conditions to solve problems ALWAYS REMEMBER TO SET IT IN ORDER TO SOLVE BY VERBAL OU VISUAL
     private boolean shouldUseVerbal = true;
-    private boolean shouldUseVisual = false;
 
     private int answer = -1;
 
-    private String matrix2x2Type = "matrix2x2";
-    private String matriz3x3Type = "matrix3x3";
+    private String matrix2x2Type = "2x2";
+    private String matriz3x3Type = "3x3";
+
+    //Attributes to be ignored in this project1
+    private String ignoreAttribute1 = "above";
+    private String ignoreAttribute2 = "inside";
+    private String ignoreAttribute3 = "overlaps";
 
     private HashMap<String, RavensFigure> scenarios;
     private HashMap<String, ObjDifferences> vectorOfDifferences;
     private HashMap<String, ObjDifferences> potentialAnswer;
+
+    private RavensProblem currentProblem;
 
     /**
      * The default constructor for your Agent. Make sure to execute any
@@ -59,6 +65,9 @@ public class Agent {
      * @return your Agent's answer to this problem
      */
     public int Solve(RavensProblem problem) {
+        currentProblem = problem;
+        ResetClassVariables();
+
         scenarios = problem.getFigures();
         String currentProblemType = problem.getProblemType();
 
@@ -66,14 +75,20 @@ public class Agent {
 
         if (problem.hasVerbal() && matrix2x2Type.equals(currentProblemType) && shouldUseVerbal)
             Solve2x2ByVerbal();
-        else if (problem.hasVisual() && matrix2x2Type.equals(currentProblemType) && shouldUseVisual)
-            Solve2x2ByImage();
-        else if (problem.hasVerbal() && matriz3x3Type.equals(currentProblemType) && shouldUseVerbal)
-            Solve3x3ByVerbal();
-        else if (problem.hasVisual() && matriz3x3Type.equals(currentProblemType) && shouldUseVisual)
-            Solve3x3ByImage();
 
+        ApplyChangesInInitialAnswer();
+        FindAnswer();
+
+        System.out.println(currentProblem.getName() + " " + answer);
         return answer;
+    }
+
+    private void ResetClassVariables()
+    {
+        scenarios = new HashMap<>();
+        vectorOfDifferences = new HashMap<>();
+        potentialAnswer = new HashMap<>();
+        answer = -1;
     }
 
     private void GetInitialAnswer(RavensFigure initialState){
@@ -87,17 +102,93 @@ public class Agent {
 
     private void ApplyChangesInInitialAnswer()
     {
+        if(vectorOfDifferences.isEmpty() || vectorOfDifferences == null)
+            return;
+
         for (String obj:vectorOfDifferences.keySet()) {
-            for (String attribute:vectorOfDifferences.get(obj).atributes.keySet()) {
-                if(vectorOfDifferences.get(obj).atributes.get(attribute).equals("deleted"))
-                    potentialAnswer.get(obj).atributes.remove(attribute);
-                else
-                    potentialAnswer.get(obj).atributes.put(attribute, vectorOfDifferences.get(obj).atributes.get(attribute));
+            if(!potentialAnswer.containsKey(obj)) {
+                potentialAnswer.put(vectorOfDifferences.get(obj).objName, vectorOfDifferences.get(obj));
+            }
+            else if(vectorOfDifferences.get(obj).deleted) {
+                potentialAnswer.remove(obj);
+            }
+            else {
+                for (String attribute : vectorOfDifferences.get(obj).atributes.keySet()) {
+                    if ("deleted".equals(vectorOfDifferences.get(obj).atributes.get(attribute)))
+                        potentialAnswer.get(obj).atributes.remove(attribute);
+                    else
+                        potentialAnswer.get(obj).atributes.put(attribute, vectorOfDifferences.get(obj).atributes.get(attribute));
+                }
             }
         }
     }
 
+    private void FindAnswer()
+    {
+        /**System.out.println("-------------------------------------------");
+        System.out.println(currentProblem.getName());
 
+        for (String obj:potentialAnswer.keySet()){
+            for (String attribute:potentialAnswer.get(obj).atributes.keySet()){
+                System.out.println(attribute + ":" + potentialAnswer.get(obj).atributes.get(attribute));
+            }
+        }
+        System.out.println("-------------------------------------------");*/
+        for(int i = 1; i<7; i++){
+            if(CompareToCheckIfIsTheAnswer(scenarios.get(Integer.toString(i))))
+                break;
+        }
+    }
+
+    private boolean CompareToCheckIfIsTheAnswer(RavensFigure scenario)
+    {
+        if(scenario.getObjects().size() != potentialAnswer.size()) {
+            //System.out.println(scenario.getName() + " has failed in size");
+            return false;
+        }
+
+        HashMap<String, ObjDifferences> possibleAnswer = new HashMap<>();
+        for(String obj:scenario.getObjects().keySet())
+        {
+            ObjDifferences differences = new ObjDifferences(scenario.getObjects().get(obj).getName(), scenario.getObjects().get(obj).getAttributes());
+            possibleAnswer.put(scenario.getObjects().get(obj).getName(), differences);
+        }
+
+       /** System.out.println("-------------------------------------------");
+         System.out.println(currentProblem.getName());
+
+         for (String obj:potentialAnswer.keySet()){
+            for (String attribute:potentialAnswer.get(obj).atributes.keySet()){
+                 System.out.println(attribute + ":" + potentialAnswer.get(obj).atributes.get(attribute));
+            }
+         }
+
+        System.out.println("++++++++++++++++++++++++++++++++++++++++");
+
+        for (String obj:scenario.getObjects().keySet()){
+            for (String attribute:scenario.getObjects().get(obj).getAttributes().keySet()){
+                System.out.println(attribute + ":" + possibleAnswer.get(obj).atributes.get(attribute));
+            }
+        }*/
+
+        for (int i=0; i<potentialAnswer.size(); i++){
+            ObjDifferences ans = (ObjDifferences) potentialAnswer.values().toArray()[i];
+            ObjDifferences potenAns = (ObjDifferences) possibleAnswer.values().toArray()[i];
+
+            for (String attribute:ans.atributes.keySet()){
+                if(!attribute.equals(ignoreAttribute1) && !attribute.equals(ignoreAttribute2) && !attribute.equals(ignoreAttribute3)) {
+                    if(!ans.atributes.get(attribute).equals(potenAns.atributes.get(attribute))) {
+                        //System.out.println(currentProblem.getName() + " " + scenario.getName() +
+                         //       " has failed in attribute: " + attribute + " value1: " + potenAns.atributes.get(attribute) + " value2: " + ans.atributes.get(attribute));
+                        return false;
+                    }
+                }
+            }
+        }
+
+        answer = Integer.parseInt(scenario.getName());
+        return true;
+    }
 
     private void Solve2x2ByVerbal() {
         RavensFigure scenarioA, scenarioB, scenarioC;
@@ -109,30 +200,56 @@ public class Agent {
         CompareScenarios(scenarioA, scenarioC);
     }
 
-    private void Solve2x2ByImage() {
-    }
-
-    private void Solve3x3ByVerbal() {
-    }
-
-    private void Solve3x3ByImage() {
-    }
-
     private void CompareScenarios(RavensFigure scenario1, RavensFigure scenario2)
     {
         int sizeScenario1 = scenario1.getObjects().size();
         int sizeScenario2 = scenario2.getObjects().size();
 
-        int selectedSize = sizeScenario1 > sizeScenario2 ? sizeScenario2 : sizeScenario1;
+        int selectedSize = (sizeScenario1 > sizeScenario2) ? sizeScenario2 : sizeScenario1;
 
         for (int i = 0 ; i < selectedSize; i++) {
-            //TODO check case where object exists in scenario A but does not exist in scenario2 and where it exits in scenario B but do not exits in scenario A
-            //TODO check if it works
             RavensObject aCurrentObj = (RavensObject)scenario1.getObjects().values().toArray()[i];
             RavensObject bCurrentObj = (RavensObject)scenario2.getObjects().values().toArray()[i];
 
             CompareObjects(aCurrentObj, bCurrentObj);
         }
+
+        if(sizeScenario1 != sizeScenario2) //Check necessity to add or remove objects in VectorOfDifference
+        {
+            if(sizeScenario1 > sizeScenario2)
+            {
+                int sizediff = sizeScenario1 - sizeScenario2;
+
+                for(int i=0; i<sizediff; i++){       //Removing objects
+                    AddObjectInVectorOfDifference((RavensObject)scenario1.getObjects().values().toArray()[sizeScenario2+i], false);
+                }
+            }
+            else
+            {
+                int sizediff = sizeScenario2 - sizeScenario1;
+
+                for(int i=0; i<sizediff; i++){      //Adding objects
+                    AddObjectInVectorOfDifference((RavensObject)scenario2.getObjects().values().toArray()[sizeScenario1+i], true);
+                }
+            }
+        }
+    }
+
+    private void AddObjectInVectorOfDifference(RavensObject object, boolean state)
+    {
+        ObjDifferences diff;
+        if(state)
+            diff = new ObjDifferences(object.getName(), object.getAttributes());
+        else
+        {
+            diff = new ObjDifferences(object.getName());
+            diff.deleted = true;
+        }
+
+        if(vectorOfDifferences == null)
+            vectorOfDifferences = new HashMap<>();
+
+        vectorOfDifferences.put(diff.objName, diff);
     }
 
     private void CompareObjects(RavensObject obj1, RavensObject obj2)
@@ -143,85 +260,90 @@ public class Agent {
         ObjDifferences diff = new ObjDifferences(obj1.getName());
 
         for (String attribute:obj1.getAttributes().keySet()) {
-
-            if(!obj2.getAttributes().containsKey(attribute)) {
-                diff.atributes.put(attribute, "deleted");
-            }
-            else{
-                if(!obj1.getAttributes().get(attribute).equals(obj2.getAttributes().get(attribute))) {
-                    if(vectorOfDifferences.containsKey(obj1.getName())) {
-                        if (!vectorOfDifferences.get(obj1.getName()).atributes.containsKey(attribute))
-                            diff.atributes.put(attribute, obj2.getAttributes().get(attribute));
-                        else {
-                            String answer =
-                                    CalculateDifferencesBetweenAtrributes(attribute, vectorOfDifferences.get(obj1.getName()).atributes.get(attribute), obj2.getAttributes().get(attribute));
-                            diff.atributes.put(attribute, answer);
+            if(!ignoreAttribute1.equals(attribute) && !ignoreAttribute2.equals(attribute) && !ignoreAttribute3.equals(attribute)) {     //To check if the attributes are differents from those to ignore
+                if (!obj2.getAttributes().containsKey(attribute)) {
+                    diff.atributes.put(attribute, "deleted");
+                } else {
+                    if (!obj1.getAttributes().get(attribute).equals(obj2.getAttributes().get(attribute))) {
+                        if (vectorOfDifferences.containsKey(obj1.getName())) {
+                            if (!vectorOfDifferences.get(obj1.getName()).atributes.containsKey(attribute))
+                                diff.atributes.put(attribute, obj2.getAttributes().get(attribute));
+                            else {
+                                String answer =
+                                        CalculateDifferencesBetweenAtrributes(attribute, obj1.getAttributes().get(attribute),
+                                                vectorOfDifferences.get(obj1.getName()).atributes.get(attribute), obj2.getAttributes().get(attribute));
+                                diff.atributes.put(attribute, answer);
+                            }
+                        } else {
+                            if (!obj1.getAttributes().get(attribute).equals(obj2.getAttributes().get(attribute)))
+                                diff.atributes.put(attribute, obj2.getAttributes().get(attribute));
                         }
-                    }
-                    else{
-                        if(!obj1.getAttributes().get(attribute).equals(obj2.getAttributes().get(attribute)))
-                            diff.atributes.put(attribute, obj2.getAttributes().get(attribute));
                     }
                 }
             }
         }
 
         for(String attribute:obj2.getAttributes().keySet()){
-            if(!obj1.getAttributes().containsKey(attribute))
-                diff.atributes.put(attribute, obj2.getAttributes().get(attribute));
+            if(!ignoreAttribute1.equals(attribute) && !ignoreAttribute2.equals(attribute) && !ignoreAttribute3.equals(attribute)) {     //To check if the attributes are differents from those to ignore
+                if (!obj1.getAttributes().containsKey(attribute))
+                    diff.atributes.put(attribute, obj2.getAttributes().get(attribute));
+            }
         }
 
         if(diff.atributes != null && !diff.atributes.isEmpty())
             vectorOfDifferences.put(obj1.getName(), diff);
     }
 
-    private String CalculateDifferencesBetweenAtrributes(String attribute, String diff1, String diff2)
+    private String CalculateDifferencesBetweenAtrributes(String attribute, String originalValue, String diff1, String diff2)
     {
-        //TODO
-        return "-1";
+        String answer = "";
+
+        if("angle".equals(attribute))
+            answer = CompareAngle(diff1, diff2);
+        else if("alignment".equals(attribute))
+            answer = CompareAligment(originalValue, diff1, diff2);
+
+        return answer;
     }
 
-    private String CompareFillAndShape(String color1, String color2)
+    private String CompareAngle(String value1, String value2)
     {
-        if(color1 == color2)
-            return "same";
-        else
-            return  "changed";
+        if("deleted".equals(value1))
+            return value2;
+
+        if("deleted".equals(value2))
+            return value1;
+
+        int baseAngle = 90;
+        int val1 = Integer.parseInt(value1);
+        int val2= Integer.parseInt(value2);
+
+        int baseLine = val1 % baseAngle;
+
+        int partialResult = Math.abs(val1 - val2);
+        int result = baseLine + partialResult;
+
+        return Integer.toString(result);
     }
 
-    private String CompareSize(String size1, String size2)
+    private String CompareAligment(String baseValue, String value1, String value2)
     {
-        int intsize1;
-        int intsize2;
+        String[] partialAnswer = baseValue.split("-");
+        String[] group1 = value1.split("-");
+        String[] group2 = value2.split("-");
 
-        if("very small".equals(size1))
-            intsize1 = 0;
-        else if ("small".equals((size1)))
-            intsize1 = 1;
-        else if ("medium".equals((size1)))
-            intsize1 = 2;
-        else if("large".equals(size1))
-            intsize1 = 3;
-        else
-            intsize1 = 4;
+        for(int i=0; i<partialAnswer.length; i++)
+        {
+            if(!partialAnswer[i].equals(group1[i]))
+                partialAnswer[i] = group1[i];
 
-        if("very small".equals(size2))
-            intsize2 = 0;
-        else if ("small".equals((size2)))
-            intsize2 = 1;
-        else if ("medium".equals((size2)))
-            intsize2 = 2;
-        else if("large".equals(size2))
-            intsize2 = 3;
-        else
-            intsize2 = 4;
+            if(!partialAnswer[i].equals(group2[i]))
+                partialAnswer[i] = group2[i];
+        }
 
-        if(intsize1 == intsize2)
-            return "same";
-        else if(intsize1 > intsize2)
-            return "reduced";
-        else
-            return "expanded";
+        String result = partialAnswer[0] + "-" + partialAnswer[1];
+
+        return result;
     }
 
     class ObjDifferences{
@@ -239,6 +361,5 @@ public class Agent {
             objName = n;
             atributes = h;
         }
-
     }
 }
